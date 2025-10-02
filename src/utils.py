@@ -1,5 +1,6 @@
 import os
 import json
+from dataclasses import dataclass
 
 USE_UNSLOTH = True
 
@@ -13,3 +14,9 @@ def write_json(data: dict, path: str):
     with open(path, 'w') as f:
         json.dump(data, f, indent=2)
     print(f"Saved data to {path}")
+
+def save_dataset(dataset: list, path: str):
+    validate_path(path)
+    with open(path, 'w') as f:
+        json.dump([x.to_dict() for x in dataset], f, indent=2)
+    print(f"Saved dataset to {path}")

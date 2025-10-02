@@ -166,7 +166,7 @@ def train_model(
     )
 
     # Save config
-    write_json(asdict(training_args), output_dir + '/config.json')
+    write_json(asdict(training_args), output_dir + '/_config.json') # If there is no underscore, this will impact runs
 
     # Trainer
     trainer = SFTTrainer(
@@ -189,7 +189,7 @@ def train_model(
     tokenizer.save_pretrained(output_dir)
 
     print("✅ Training complete!")
-    graceful_shutdown()
+    graceful_shutdown(model, trainer, tokenizer)
 
 
 
