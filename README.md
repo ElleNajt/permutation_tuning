@@ -2,6 +2,11 @@
 
 Testing whether models can learn reasoning patterns when chain-of-thought tokens are permuted.
 
+
+flash_attn-2.8.3+cu128torch2.7-cp311-cp311-linux_x86_64.whl
+
+sha256:72ea56dddc7a5f9f2f9b28757304e55c9aae87ffdd9a8e1cd64aa215348144e4
+
 ## Experiment Design
 
 ### Core Intuition

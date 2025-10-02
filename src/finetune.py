@@ -6,19 +6,17 @@ Uses LoRA for efficient fine-tuning.
 """
 
 import json
-import argparse
+import datetime
 import gc
 from pathlib import Path
 import torch
 import wandb
 from datasets import Dataset
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    DataCollatorForLanguageModeling
-)
 from trl import apply_chat_template, SFTTrainer, SFTConfig, DataCollatorForCompletionOnlyLM
-from peft import LoraConfig, get_peft_model, TaskType
+from dataclasses import dataclass, asdict
+from datetime import datetime
+
+from src.utils import validate_path, write_json, USE_UNSLOTH
 
 
 def format_example(example, tokenizer, start_think_token: str = "<think>", end_think_token: str = "</think>"):
@@ -42,74 +40,115 @@ def format_example(example, tokenizer, start_think_token: str = "<think>", end_t
     return messages
 
 
-def load_and_format_data(data_file: Path, tokenizer):
+def load_and_format_data(data_file: Path, tokenizer, n_samples: int | None = None):
     """Load JSON dataset and format for training using tokenizer's chat template."""
     with open(data_file) as f:
         data = json.load(f)
 
     # Format examples with tokenizer
     data = [format_example(ex, tokenizer) for ex in data]
-    dataset = Dataset.from_list(dataset)
+
+    if n_samples is not None:
+        data = data[:n_samples]
+
+    dataset = Dataset.from_list(data)
 
     # Apply chat template
     dataset = dataset.map(apply_chat_template, fn_kwargs=dict(tokenizer=tokenizer))
 
     return dataset
 
+def load_model_tokenizer(model_id: str, **kwargs):
+    if USE_UNSLOTH:
+        from unsloth import FastLanguageModel
+        return FastLanguageModel.from_pretrained(
+            model_name = model_id,
+            attn_implementation = "flash_attention_2",
+            load_in_4bit = kwargs.get("load_in_4bit", True),
+            load_in_8bit = kwargs.get("load_in_8bit", False),
+            **kwargs
+        )
+    else:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        return AutoModelForCausalLM.from_pretrained(
+            model_id,
+            **kwargs
+        ), AutoTokenizer.from_pretrained(model_id)
+
+def get_peft_model(model, **kwargs):
+    if USE_UNSLOTH:
+        from unsloth import FastLanguageModel
+        return FastLanguageModel.get_peft_model(
+            model,
+            **kwargs
+        )
+    else:
+        from peft import get_peft_model
+        return get_peft_model(
+            model,
+            **kwargs
+        )
+
+def format_output_dir(model_id: str, model_name: str):
+    return f"results/models/{model_id}/{model_name}/{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
 
 def train_model(
-    model_name: str,
+    model_name: str, # Friendly name
+    model_id: str,
     train_file: Path,
     test_file: Path,
-    output_dir: Path,
     epochs: int = 3,
     batch_size: int = 4,
+    gradient_accumulation_steps: int = 16,
     learning_rate: float = 2e-4,
     use_lora: bool = True
 ):
     """Fine-tune model on dataset."""
-    print(f"Loading model: {model_name}")
+    print(f"Loading model: {model_id}")
 
     # Load tokenizer and model
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenizer.pad_token = tokenizer.eos_token
-
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        torch_dtype=torch.float16,
-        device_map="auto",
-        trust_remote_code=True
-    )
+    model, tokenizer = load_model_tokenizer(model_id)
 
     # Apply LoRA if requested
     if use_lora:
         print("Applying LoRA configuration...")
-        lora_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM,
-            r=16,
-            lora_alpha=32,
-            lora_dropout=0.05,
-            target_modules=["q_proj", "v_proj", "k_proj", "o_proj"]
-        )
-        model = get_peft_model(model, lora_config)
+        lora_config = {
+            "r": 8,
+            "lora_alpha": 8,
+            "lora_dropout": 0.0,
+            "target_modules": [
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ]
+        }
+        model = get_peft_model(model, **lora_config)
         model.print_trainable_parameters()
 
     # Load and prepare data
     print(f"Loading training data from {train_file}")
     train_data = load_and_format_data(train_file, tokenizer)
-    test_data = load_and_format_data(test_file, tokenizer)[:25] # Small subset of dataset
+    test_data = load_and_format_data(test_file, tokenizer, n_samples = 25) # Small subset of dataset
+
+    output_dir = format_output_dir(model_id, model_name)
+    validate_path(output_dir)
 
     # Training arguments
     training_args = SFTConfig(
-        output_dir=str(output_dir),
+        output_dir=output_dir,
 
         # Training settings
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        gradient_accumulation_steps=16,
+        gradient_accumulation_steps=gradient_accumulation_steps,
         learning_rate=learning_rate,
-        wamup_ratio=0.05,
+        warmup_ratio=0.05,
         assistant_only_loss = True,
 
         # Logging and saving
@@ -126,19 +165,18 @@ def train_model(
         
     )
 
-    # Data collator
-    data_collator = DataCollatorForCompletionOnlyLM(
-        tokenizer=tokenizer,
-        pad_token_id=tokenizer.eos_token_id
-    )
+    # Save config
+    write_json(asdict(training_args), output_dir + '/config.json')
 
     # Trainer
     trainer = SFTTrainer(
         model=model,
         args=training_args,
         train_dataset=train_data,
+        dataset_text_field="messages",
+        dataset_num_proc=8,
         eval_dataset=test_data,
-        data_collator=data_collator
+        packing=False
     )
 
     # Train

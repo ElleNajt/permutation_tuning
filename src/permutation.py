@@ -15,6 +15,8 @@ from datasets import load_dataset
 import os
 from dataclasses import dataclass, asdict
 
+from src.utils import validate_path
+
 @dataclass
 class Example:
     question: str
@@ -185,12 +187,10 @@ def preprocess_dataset(dataset: List[Dict]) -> List[Dict]:
         )
     return preprocessed_dataset
 
-def validate_path(path: str):
-    if not os.path.exists(os.path.dirname(path)):
-        os.makedirs(os.path.dirname(path))
-    return path
+
 
 def save_dataset(dataset: List[Example], path: str):
+    validate_path(path)
     with open(path, 'w') as f:
         json.dump([x.to_dict() for x in dataset], f, indent=2)
     print(f"Saved dataset to {path}")

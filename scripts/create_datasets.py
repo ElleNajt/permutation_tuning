@@ -17,8 +17,6 @@ def main():
     
     dataset = load_dataset("gsm8k", "main")
 
-    validate_path('results/datasets')
-
     # Transforms to question, cot, answer
     train_data = preprocess_dataset([dict(example) for example in dataset['train']][:args.n_train])
     test_data = preprocess_dataset([dict(example) for example in dataset['test']][:args.n_test])

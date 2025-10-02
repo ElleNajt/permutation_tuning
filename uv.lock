@@ -1217,14 +1217,14 @@ wheels = [
 
 [[package]]
 name = "flash-attn"
-version = "2.7.4.post1"
-source = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl" }
+version = "2.8.3"
+source = { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.4.11/flash_attn-2.8.3+cu128torch2.7-cp311-cp311-linux_x86_64.whl" }
 dependencies = [
     { name = "einops" },
     { name = "torch" },
 ]
 wheels = [
-    { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl", hash = "sha256:58853b28a5a926cae14402bfd8d4d93a45ebf8f9e79533f37ab09d0d77a99c05" },
+    { url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.4.11/flash_attn-2.8.3+cu128torch2.7-cp311-cp311-linux_x86_64.whl", hash = "sha256:fc9a76bc8da9d57b93ba953e462db0ebd692930ba09dceaa1c3eea6e2d9e9cea" },
 ]
 
 [package.metadata]
@@ -2659,12 +2659,12 @@ name = "mlx-lm"
 version = "0.28.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "jinja2" },
-    { name = "mlx" },
-    { name = "numpy" },
-    { name = "protobuf" },
-    { name = "pyyaml" },
-    { name = "transformers" },
+    { name = "jinja2", marker = "sys_platform == 'darwin' or (extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
+    { name = "mlx", marker = "sys_platform == 'darwin' or (extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
+    { name = "numpy", marker = "sys_platform == 'darwin' or (extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
+    { name = "protobuf", marker = "sys_platform == 'darwin' or (extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
+    { name = "pyyaml", marker = "sys_platform == 'darwin' or (extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
+    { name = "transformers", marker = "sys_platform == 'darwin' or (extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/d7/fdde445c7bd443a2ed23badda6064f1477c4051543922106f365e94082cd/mlx_lm-0.28.2.tar.gz", hash = "sha256:d28752635ed5c89ff2b41361916c928e6b16f765c07b2908044e1dcaf921ed9b", size = 209374, upload-time = "2025-10-02T14:23:57.497Z" }
 wheels = [
@@ -3106,7 +3106,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.5.1.17"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/99/93/a201a12d3ec1caa8c6ac34c1c2f9eeb696b886f0c36ff23c638b46603bd0/nvidia_cudnn_cu12-9.5.1.17-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:9fd4584468533c61873e5fda8ca41bac3a38bcb2d12350830c69b0a96a7e4def", size = 570523509, upload-time = "2024-10-25T19:53:03.148Z" },
@@ -3119,7 +3119,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1f/37/c50d2b2f2c07e146776389e3080f4faf70bcc4fa6e19d65bb54ca174ebc3/nvidia_cufft_cu12-11.3.0.4-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:d16079550df460376455cba121db6564089176d9bac9e4f360493ca4741b22a6", size = 200164144, upload-time = "2024-11-20T17:40:58.288Z" },
@@ -3155,9 +3155,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.1.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
-    { name = "nvidia-cusparse-cu12" },
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
+    { name = "nvidia-cusparse-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/93/17/dbe1aa865e4fdc7b6d4d0dd308fdd5aaab60f939abfc0ea1954eac4fb113/nvidia_cusolver_cu12-11.7.1.2-py3-none-manylinux2014_aarch64.whl", hash = "sha256:0ce237ef60acde1efc457335a2ddadfd7610b892d94efee7b776c64bb1cac9e0", size = 157833628, upload-time = "2024-10-01T17:05:05.591Z" },
@@ -3172,7 +3172,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/eb/eb/6681efd0aa7df96b4f8067b3ce7246833dd36830bb4cec8896182773db7d/nvidia_cusparse_cu12-12.5.4.2-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:d25b62fb18751758fe3c93a4a08eff08effedfe4edf1c6bb5afd0890fe88f887", size = 216451147, upload-time = "2024-11-20T17:44:18.055Z" },
@@ -3655,6 +3655,7 @@ dependencies = [
     { name = "colorama" },
     { name = "dill", version = "0.3.8", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-18-permutation-tuning-dev'" },
     { name = "dill", version = "0.4.0", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-18-permutation-tuning-sae' or extra != 'group-18-permutation-tuning-dev'" },
+    { name = "hf-transfer" },
     { name = "ipykernel" },
     { name = "ipywidgets" },
     { name = "jinja2" },
@@ -3696,6 +3697,7 @@ sae = [
 requires-dist = [
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "dill", specifier = ">=0.3.8" },
+    { name = "hf-transfer", specifier = ">=0.1.9" },
     { name = "ipykernel", specifier = ">=6.30.0" },
     { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "jinja2", specifier = ">=3.1.6" },
@@ -3724,10 +3726,10 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "flash-attn", url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl" },
+    { name = "flash-attn", url = "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.4.11/flash_attn-2.8.3+cu128torch2.7-cp311-cp311-linux_x86_64.whl" },
     { name = "trl", specifier = "==0.19.1" },
     { name = "unsloth", specifier = "==2025.8.1" },
-    { name = "unsloth-zoo", specifier = ">=2025.4.4" },
+    { name = "unsloth-zoo", specifier = "==2025.8.1" },
 ]
 sae = [{ name = "sae-lens", specifier = ">=6.0.0" }]
 
@@ -5388,17 +5390,6 @@ wheels = [
 ]
 
 [[package]]
-name = "torchao"
-version = "0.13.0"
-source = { registry = "https://pypi.org/simple" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f5/f3/5f652941cbc7d07f1d40bcfb7263919a4994f318e1cf7be45cf2b6107d46/torchao-0.13.0-1-cp39-abi3-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:718568b158af481fdd6220165d3e336b7789ad8900ac40a07bf2212505e84491", size = 6927763, upload-time = "2025-09-04T14:52:13.869Z" },
-    { url = "https://files.pythonhosted.org/packages/6b/1b/ae70db198ef86b36834901229330a38709c39807ae70ae833e7237195810/torchao-0.13.0-1-py3-none-any.whl", hash = "sha256:15afa4c946b251c22004cc4c095670092094da0b1329223ff413552c4070aae6", size = 1025992, upload-time = "2025-09-04T14:52:15.336Z" },
-    { url = "https://files.pythonhosted.org/packages/d8/0d/1d9d26ba3397e19a30c6111d393dfdeb95b3eb33913d17de802ee8d83e6f/torchao-0.13.0-cp39-abi3-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0773c0e74e16b1fe50953596fb24faf40a056c654b6da8a440934af6ead95936", size = 6927472, upload-time = "2025-09-03T13:48:45.202Z" },
-    { url = "https://files.pythonhosted.org/packages/ec/32/43bbd27cd5aa6b5bb6dbf46d4cfe2757814b023394279c446eeaba9c1f63/torchao-0.13.0-py3-none-any.whl", hash = "sha256:d27a1ca3569d95791ab4d0a0f75507606aaca984485e77ae7116179423bf2e01", size = 1025742, upload-time = "2025-09-03T13:48:46.519Z" },
-]
-
-[[package]]
 name = "torchaudio"
 version = "2.7.0"
 source = { registry = "https://pypi.org/simple" }
@@ -5557,7 +5548,7 @@ name = "triton"
 version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "setuptools" },
+    { name = "setuptools", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (sys_platform == 'linux' and extra == 'group-18-permutation-tuning-dev') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev' and extra == 'group-18-permutation-tuning-sae')" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/3c/c5/4874a81131cc9e934d88377fbc9d24319ae1fb540f3333b4e9c696ebc607/triton-3.3.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:3161a2bf073d6b22c4e2f33f951f3e5e3001462b2570e6df9cd57565bdec2984", size = 156528461, upload-time = "2025-04-09T20:27:32.599Z" },
@@ -5571,7 +5562,7 @@ name = "triton-windows"
 version = "3.4.0.post20"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "setuptools" },
+    { name = "setuptools", marker = "sys_platform != 'darwin' and sys_platform != 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b1/7e/1b0d7ec927b2cf765cec991a4fa0a4670e05189035b07669617d5f9a43e1/triton_windows-3.4.0.post20-cp311-cp311-win_amd64.whl", hash = "sha256:3cbe772a726411356b26ea7f2e2892fa6811f72919297a3a2fd908b8a998562a", size = 42681179, upload-time = "2025-07-31T02:19:22.482Z" },
@@ -5712,13 +5703,12 @@ wheels = [
 
 [[package]]
 name = "unsloth-zoo"
-version = "2025.9.14"
+version = "2025.8.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "accelerate" },
     { name = "cut-cross-entropy" },
     { name = "datasets", version = "3.6.0", source = { registry = "https://pypi.org/simple" } },
-    { name = "filelock" },
     { name = "hf-transfer" },
     { name = "huggingface-hub" },
     { name = "msgspec" },
@@ -5731,7 +5721,6 @@ dependencies = [
     { name = "regex" },
     { name = "sentencepiece" },
     { name = "torch" },
-    { name = "torchao" },
     { name = "tqdm" },
     { name = "transformers" },
     { name = "triton", marker = "sys_platform == 'linux'" },
@@ -5741,9 +5730,9 @@ dependencies = [
     { name = "tyro" },
     { name = "wheel" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/52/ea/ec97071c65f085916479725cff09a972033bafe6efddd206612e9ac93c9b/unsloth_zoo-2025.9.14.tar.gz", hash = "sha256:2f068ba7fb9a12f11c3e0a3abb4347d7066c0cf60ccb11f4eedcb09f775218b8", size = 235106, upload-time = "2025-10-01T12:10:44.351Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/37/bc/c710b9da0d70ca1cb324adc3310b9d1ed31dc340956cbb64cbb7412ef57a/unsloth_zoo-2025.8.1.tar.gz", hash = "sha256:02401f77e7496fc03d71460afd51f7d10e71376056ff1e33ca776723237dcb5e", size = 148526, upload-time = "2025-08-02T10:38:43.356Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4c/cc/656302ce1f84281d245aba9a49b7d912cbdba613dc8d6fb0607555c8c7e3/unsloth_zoo-2025.9.14-py3-none-any.whl", hash = "sha256:211d9229df64a3733e0c11450848665076471cd57569b9c90cfc36dc8d44990d", size = 256523, upload-time = "2025-10-01T12:10:42.573Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/d9/7199031146fbf00eeea1af1b8b9db16c6ec0e86ae86db515eabcedfaa00d/unsloth_zoo-2025.8.1-py3-none-any.whl", hash = "sha256:3dc80e8909072e5812efaca38f965ebb4cdc2c8bd87df9fb0690dc37dcf5003c", size = 166706, upload-time = "2025-08-02T10:38:41.728Z" },
 ]
 
 [[package]]
@@ -6103,8 +6092,8 @@ name = "xformers"
 version = "0.0.30"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy" },
-    { name = "torch" },
+    { name = "numpy", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev')" },
+    { name = "torch", marker = "(platform_machine != 'aarch64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and extra == 'group-18-permutation-tuning-dev') or (sys_platform != 'linux' and extra == 'group-18-permutation-tuning-dev')" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/bf/f7/dd2269cce89fd1221947dd7cc3a60707ffe721ef55c1803ac3b1a1f7ae5c/xformers-0.0.30.tar.gz", hash = "sha256:a12bf3eb39e294cdbe8a7253ac9b665f41bac61d6d98df174e34ef7bdb6f2fc4", size = 10214139, upload-time = "2025-04-28T20:51:02.045Z" }
 wheels = [

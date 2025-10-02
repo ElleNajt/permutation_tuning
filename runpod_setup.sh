@@ -1,7 +1,7 @@
 # RUNPOD SETUP FILE
 # ASSUMES YOU HAVE A GIT KEY SAVED IN workspace/.ssh/id_ed25519
 
-export GIT_REPO_NAME=permutation-tuning
+export GIT_REPO_NAME=permutation_tuning
 export NFS_DIR=/workspace
 export LOCAL_SSD_DIR=/tmp
 
