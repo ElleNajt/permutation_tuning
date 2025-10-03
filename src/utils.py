@@ -22,6 +22,6 @@ def save_dataset(dataset: list, path: str):
         json.dump([x.to_dict() for x in dataset], f, indent=2)
     print(f"Saved dataset to {path}")
 
-
 def copy_move_file(src: str, dst: str):
+    validate_path(dst)
     shutil.copy(src, dst)

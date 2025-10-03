@@ -17,46 +17,24 @@ from dataclasses import dataclass, asdict
 from datetime import datetime
 
 from src.utils import validate_path, write_json, USE_UNSLOTH, copy_move_file
-
-
-def format_example(example, tokenizer, start_think_token: str = "<think>", end_think_token: str = "</think>"):
-    """Format example with thinking tokens for COT reasoning using chat template.
-    
-    Expected example keys: question, cot, answer
-    Format: User question, then assistant response with <think>COT</think> followed by final answer.
-    """
-    question = example['question']
-    cot = example['cot']
-    answer = example['answer']
-    
-    # Structure as chat messages with thinking tokens in assistant response
-    messages = {
-        'messages': [
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": f"{start_think_token}{cot}{end_think_token}{answer}"}
-        ]
-    }
-    
-    return messages
-
+from src.data import load_dataset
 
 def load_and_format_data(data_file: Path, tokenizer, n_samples: int | None = None):
     """Load JSON dataset and format for training using tokenizer's chat template."""
-    with open(data_file) as f:
-        data = json.load(f)
-
-    # Format examples with tokenizer
-    data = [format_example(ex, tokenizer) for ex in data]
+    
+    data = load_dataset(data_file)
 
     if n_samples is not None:
         data = data[:n_samples]
 
-    dataset = Dataset.from_list(data)
+    # Convert to chatml format
+    data = [example.to_chatml() for example in data]
+    data = Dataset.from_list(data)
 
-    # Apply chat template
-    dataset = dataset.map(apply_chat_template, fn_kwargs=dict(tokenizer=tokenizer))
+    # Apply chat template; creates a new column called 'text'
+    data = data.map(apply_chat_template, fn_kwargs=dict(tokenizer=tokenizer))
 
-    return dataset
+    return data
 
 def load_model_tokenizer(model_id: str, **kwargs):
     if USE_UNSLOTH:
@@ -98,6 +76,8 @@ def train_model(
     model_id: str,
     train_file: Path,
     test_file: Path,
+    train_size: int | None = None,
+    test_size: int | None = None,
     epochs: int = 3,
     batch_size: int = 4,
     gradient_accumulation_steps: int = 16,
@@ -133,8 +113,10 @@ def train_model(
 
     # Load and prepare data
     print(f"Loading training data from {train_file}")
-    train_data = load_and_format_data(train_file, tokenizer)
-    test_data = load_and_format_data(test_file, tokenizer, n_samples = 25) # Small subset of dataset
+    train_data = load_and_format_data(train_file, tokenizer, n_samples = train_size)
+    test_data = load_and_format_data(test_file, tokenizer, n_samples = test_size) # Small subset of dataset
+    print(f"Loaded {len(train_data)} training examples and {len(test_data)} test examples")
+    print('Example training data:', train_data[0])
 
     output_dir = format_output_dir(model_id, model_name)
     validate_path(output_dir)
@@ -161,14 +143,11 @@ def train_model(
         logging_steps=1,
         eval_strategy="epoch",
         save_strategy="epoch",
-        eval_steps=100,
-        save_steps=500,
         save_total_limit=2,
         save_only_model=True,
         fp16 = not torch.cuda.is_bf16_supported(),
         bf16 = torch.cuda.is_bf16_supported(),
         report_to="wandb",
-        
     )
 
     # Save config
@@ -179,15 +158,21 @@ def train_model(
         model=model,
         args=training_args,
         train_dataset=train_data,
-        dataset_text_field="messages",
-        dataset_num_proc=8,
         eval_dataset=test_data,
-        packing=False
+        dataset_text_field="text",
+        dataset_num_proc=8,
+        packing=True,
+        max_seq_length=4096
     )
 
     # Train
     print("Starting training...")
-    trainer.train()
+    try:
+        trainer.train()
+    except BaseException as e:
+        print(f"Encountered error during training, running graceful shutdown...")
+        graceful_shutdown(model, trainer, tokenizer)
+        raise e
 
     # Save final model
     print(f"Saving model to {output_dir}")
