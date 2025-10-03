@@ -3,9 +3,18 @@
 Testing whether models can learn reasoning patterns when chain-of-thought tokens are permuted.
 
 
-flash_attn-2.8.3+cu128torch2.7-cp311-cp311-linux_x86_64.whl
+### Changes
+- Cipher specific to groups of tokens to prevent incoherent results
+- Fixing finetuning + eval scripts, adding prompting
+- Batch size and grad accumulation steps a lot higher
+- Changed LoRa to rank 8 / alpha 8 for simpler/faster first cut
 
-sha256:72ea56dddc7a5f9f2f9b28757304e55c9aae87ffdd9a8e1cd64aa215348144e4
+
+### Potential Fixes
+- Use lowercase words for counts and for substitution preserve case
+- Separate into different parts of speech, or eliminate certain words (the, and, is, etc.)
+- Dont select top tokens, select middle of the road tokens
+
 
 ## Experiment Design
 

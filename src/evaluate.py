@@ -11,12 +11,17 @@ import argparse
 from pathlib import Path
 import torch
 from datetime import datetime
+from typing import Literal
 import tqdm
 import re
-# from calculator import extract_and_compute
-from src.utils import validate_path, write_json, USE_UNSLOTH, save_dataset
+import gc
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+from src.utils import save_dataset
 
 from dataclasses import dataclass, asdict
+
+torch.set_float32_matmul_precision('high')
 
 @dataclass
 class Result:
@@ -33,17 +38,29 @@ class Result:
         return asdict(self)
 
 
-def load_model_and_tokenizer(model_path: str, adapter_path: str = None):
+def load_model_and_tokenizer(model_id: str, model_path: str, adapter_path: str = None, engine = 'unsloth'):
     """Load model and tokenizer using unsloth, optionally with LoRA adapters."""
 
-    if os.path.exists(model_path + '/config.json'):
-        with open(model_path + '/config.json') as f:
-            cfg = json.load(f)
-    else:
-        cfg = {}
-    cfg['model_id'] = model_path.removeprefix('results/models/').removesuffix('/')
+    lora_request = None
 
-    if USE_UNSLOTH:
+    if engine == 'vllm':
+        from vllm import LLM
+        from vllm.lora.request import LoRARequest
+        from transformers import AutoTokenizer
+        model = LLM(
+            model = model_id,
+            enable_lora = adapter_path is not None,
+            task = "generate",
+            max_lora_rank = 64
+        )
+        if adapter_path:
+            lora_request = LoRARequest(
+                "lora_adapter",
+                1,
+                adapter_path
+            )
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+    elif engine == 'unsloth':
         from unsloth import FastLanguageModel
         
         # Load base model or fine-tuned model
@@ -56,6 +73,7 @@ def load_model_and_tokenizer(model_path: str, adapter_path: str = None):
         )
         
         # If adapter path is provided and different from model_path, load the adapter
+        # Unsloth auto-loads the adapters by default - CHECK THIS
         if adapter_path and adapter_path != model_path:
             print(f"Loading LoRA adapter from: {adapter_path}")
             from peft import PeftModel
@@ -65,9 +83,9 @@ def load_model_and_tokenizer(model_path: str, adapter_path: str = None):
         FastLanguageModel.for_inference(model)
     else:
         from transformers import AutoModelForCausalLM, AutoTokenizer
-        tokenizer = AutoTokenizer.from_pretrained(cfg['model_id'])
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
         model = AutoModelForCausalLM.from_pretrained(
-            cfg['model_id'],
+            model_id,
             torch_dtype = torch.float16,
             device_map = "auto"
         )
@@ -78,7 +96,7 @@ def load_model_and_tokenizer(model_path: str, adapter_path: str = None):
         
         model.eval()
     
-    return model, tokenizer
+    return model, tokenizer, lora_request
 
 
 def load_data(n_samples: int | None = None):
@@ -131,20 +149,46 @@ def extract_final_number(answer: str) -> str:
     # Otherwise return the answer as is
     return answer.strip()
 
-
-def generate_answer(model, tokenizer, question: str, max_new_tokens: int = 2056, temperature: float = 0.7):
-    """Generate answer for a question using chat template."""
+def prepare_question(question: str, tokenizer, with_chat_template = True) -> str | list[dict]:
     # Format as chat message
     messages = [
         {"role": "user", "content": question + ".\n Please reason step by step, and put your final answer within \boxed{}."}
     ]
     
-    # Apply chat template
-    prompt = tokenizer.apply_chat_template(
-        messages,
-        tokenize = False,
-        add_generation_prompt = True
-    )
+    if with_chat_template:
+        # Apply chat template
+        prompt = tokenizer.apply_chat_template(
+            messages,
+            tokenize = False,
+            add_generation_prompt = True
+        )
+        return prompt
+    else:
+        return messages
+
+def process_response(output: str, tokenizer, prompt: str):
+    # Decode
+    generated = tokenizer.decode(output, skip_special_tokens = True)
+    
+    # Remove the prompt to get just the assistant's response
+    # Find where the assistant response starts
+    assistant_start = generated.find(prompt)
+    if assistant_start != -1:
+        response = generated[len(prompt):].strip()
+    else:
+        # Fallback: try to find the last "assistant" marker
+        parts = generated.split("assistant")
+        if len(parts) > 1:
+            response = parts[-1].strip()
+        else:
+            response = generated
+    return response
+
+
+def generate_unsloth_answer(model, tokenizer, question: str, max_new_tokens: int = 2056, temperature: float = 0.7):
+    """Generate answer for a single question using chat template."""
+    
+    prompt = prepare_question(question, tokenizer)
     
     # Tokenize
     inputs = tokenizer(prompt, return_tensors = "pt").to(model.device)
@@ -160,40 +204,47 @@ def generate_answer(model, tokenizer, question: str, max_new_tokens: int = 2056,
             eos_token_id = tokenizer.eos_token_id,
         )
     
-    # Decode
-    generated = tokenizer.decode(outputs[0], skip_special_tokens = True)
-    
-    # Remove the prompt to get just the assistant's response
-    # Find where the assistant response starts
-    assistant_start = generated.find(prompt)
-    if assistant_start != -1:
-        response = generated[len(prompt):].strip()
-    else:
-        # Fallback: try to find the last "assistant" marker
-        parts = generated.split("assistant")
-        if len(parts) > 1:
-            response = parts[-1].strip()
-        else:
-            response = generated
-
-    
+    response = process_response(outputs[0], tokenizer, prompt)
     return response
 
-def generate_evaluation_responses(model, tokenizer, test_data, max_new_tokens: int = 2056, temperature: float = 0.7):
+def generate_evaluation_responses(model, tokenizer, test_data, engine, max_new_tokens: int = 2056, temperature: float = 0.7, vllm_lora_request = None):
+    """Generate evaluation responses one sample at a time (original version)."""
     # Store results
     results = []
-    
-    for i, example in tqdm.tqdm(enumerate(test_data), desc = "Running evaluation..."):
+
+    # Get responses
+    if engine == 'vllm':
+        messages = [prepare_question(example['question'], tokenizer, with_chat_template = False) for example in test_data]
         
-        # Generate model output
-        raw_response = generate_answer(
-            model, 
-            tokenizer, 
-            example['question'], 
-            max_new_tokens = max_new_tokens,
-            temperature = temperature
+        from vllm import SamplingParams as VLLMSamplingParams
+        sampling_params = VLLMSamplingParams(
+            n = 1,
+            temperature = temperature,
+            max_tokens = max_new_tokens
         )
-            
+        raw_responses = model.chat(
+            messages = messages,
+            sampling_params = sampling_params,
+            lora_request = vllm_lora_request,
+            use_tqdm = True
+        )
+        raw_responses = [r.outputs[0].text for r in raw_responses]
+
+    else:
+        raw_responses = []
+        for i, example in tqdm.tqdm(enumerate(test_data), total = len(test_data), desc = "Running evaluation..."):
+            # Generate model output
+            raw_response = generate_unsloth_answer(
+                model, 
+                tokenizer, 
+                example['question'], 
+                max_new_tokens = max_new_tokens,
+                temperature = temperature
+            )
+            raw_responses.append(raw_response)
+    
+    # Process responses
+    for i, (example, raw_response) in enumerate(zip(test_data, raw_responses)):
         # Extract COT and answer
         cot, answer = extract_thinking_and_answer(raw_response)
 
@@ -213,22 +264,30 @@ def generate_evaluation_responses(model, tokenizer, test_data, max_new_tokens: i
     return results
 
 def evaluate_model(
+        model_id: str,
         model_path: str,
         adapter_path: str = None,
         n_samples: int | None = None,
         max_new_tokens: int = 2056,
-        temperature: float = 0.7
+        temperature: float = 0.7,
+        engine: Literal['vllm', 'unsloth'] = 'vllm'
     ):
     """Evaluate model on test set and save results."""
+
+    output_fpath = (model_path if adapter_path is None else model_path) + f'/evaluation_{n_samples}.json'
+
     print(f"\n{'='*60}")
     print(f"Evaluating model: {model_path}")
+    print(f"Base Model: {model_id}")
     if adapter_path:
         print(f"Using adapter: {adapter_path}")
+    print(f"Inference engine: {engine}")
+    print(f"Output file: {output_fpath}")
     print(f"{'='*60}\n")
     
     # Load model and tokenizer
     print("Loading model...")
-    model, tokenizer = load_model_and_tokenizer(model_path, adapter_path)
+    model, tokenizer, optional_lora_request = load_model_and_tokenizer(model_id, model_path, adapter_path, engine)
     
     # Load test data
     print(f"Loading test data")
@@ -236,11 +295,51 @@ def evaluate_model(
     
     print(f"\nGenerating answers for {len(test_data)} test examples...\n")
 
-    results = generate_evaluation_responses(model, tokenizer, test_data, max_new_tokens = max_new_tokens, temperature = temperature)
+    # Choose between batched and single-sample evaluation
+    results = generate_evaluation_responses(
+        model, 
+        tokenizer, 
+        test_data, 
+        engine = engine,
+        max_new_tokens = max_new_tokens, 
+        temperature = temperature,
+        vllm_lora_request = optional_lora_request
+    )
     
-    output_fpath = (model_path if adapter_path is None else model_path) + f'/evaluation_{n_samples}.json'
+    
     save_dataset(results, output_fpath)
     print(f"\n✅ Results saved to {output_fpath}")
 
+    graceful_shutdown(model, tokenizer)
 
 
+def graceful_shutdown(model, tokenizer):
+
+    del model
+    del tokenizer
+
+    # Clear the cache
+    gc.collect()
+    torch.cuda.empty_cache()
+
+    # Clear the cache
+    try:
+        torch.cuda.ipc_collect()
+    except:
+        pass
+
+    try:
+        # Then let PyTorch tear down the process group, if vLLM initialized it
+        import torch.distributed as dist
+        if dist.is_initialized():
+            dist.destroy_process_group()  # or dist.shutdown() on recent PyTorch
+    except AssertionError:
+        pass
+    
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except OSError: 
+        pass
+
+    print("Successfully deleted the llm pipeline and free the GPU memory!")

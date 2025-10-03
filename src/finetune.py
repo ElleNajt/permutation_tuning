@@ -16,7 +16,7 @@ from trl import apply_chat_template, SFTTrainer, SFTConfig, DataCollatorForCompl
 from dataclasses import dataclass, asdict
 from datetime import datetime
 
-from src.utils import validate_path, write_json, USE_UNSLOTH
+from src.utils import validate_path, write_json, USE_UNSLOTH, copy_move_file
 
 
 def format_example(example, tokenizer, start_think_token: str = "<think>", end_think_token: str = "</think>"):
@@ -102,7 +102,8 @@ def train_model(
     batch_size: int = 4,
     gradient_accumulation_steps: int = 16,
     learning_rate: float = 2e-4,
-    use_lora: bool = True
+    use_lora: bool = True,
+    cipher_file: str | None = None
 ):
     """Fine-tune model on dataset."""
     print(f"Loading model: {model_id}")
@@ -137,6 +138,11 @@ def train_model(
 
     output_dir = format_output_dir(model_id, model_name)
     validate_path(output_dir)
+
+    if cipher_file is not None:
+        copy_move_file(cipher_file, output_dir + '/cipher.json')
+    copy_move_file(train_file, output_dir + '/train.json')
+    copy_move_file(test_file, output_dir + '/test.json')
 
     # Training arguments
     training_args = SFTConfig(

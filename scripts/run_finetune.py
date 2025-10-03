@@ -26,7 +26,7 @@ def main():
         
         train_file = Path(f"results/datasets/gsm8k_train_permuted_k{args.k}.json")
         test_file = Path(f"results/datasets/gsm8k_test_permuted_k{args.k}.json")
-        print(f"Training on PERMUTED dataset (K={args.k})")
+        print(f"Training on PERMUTED dataset (K={args.k}): {str(train_file)}")
     else:
         train_file = Path("results/datasets/gsm8k_train.json")
         test_file = Path("results/datasets/gsm8k_test.json")

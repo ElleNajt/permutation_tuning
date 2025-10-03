@@ -1,5 +1,6 @@
 import os
 import json
+import shutil
 from dataclasses import dataclass
 
 USE_UNSLOTH = True
@@ -20,3 +21,7 @@ def save_dataset(dataset: list, path: str):
     with open(path, 'w') as f:
         json.dump([x.to_dict() for x in dataset], f, indent=2)
     print(f"Saved dataset to {path}")
+
+
+def copy_move_file(src: str, dst: str):
+    shutil.copy(src, dst)
