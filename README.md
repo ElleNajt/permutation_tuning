@@ -2,6 +2,20 @@
 
 Testing whether models can learn reasoning patterns when chain-of-thought tokens are permuted.
 
+
+### Changes
+- Cipher specific to groups of tokens to prevent incoherent results
+- Fixing finetuning + eval scripts, adding prompting
+- Batch size and grad accumulation steps a lot higher
+- Changed LoRa to rank 8 / alpha 8 for simpler/faster first cut
+
+
+### Potential Fixes
+- Use lowercase words for counts and for substitution preserve case
+- Separate into different parts of speech, or eliminate certain words (the, and, is, etc.)
+- Dont select top tokens, select middle of the road tokens
+
+
 ## Experiment Design
 
 ### Core Intuition

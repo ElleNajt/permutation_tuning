@@ -10,31 +10,45 @@ import random
 from collections import Counter
 from typing import Dict, List, Tuple
 import re
+import argparse
+from datasets import load_dataset
+import os
+from dataclasses import dataclass, asdict
+
+from src.utils import validate_path, save_dataset
+
+@dataclass
+class Example:
+    question: str
+    cot: str
+    answer: str
+
+    def to_dict(self) -> Dict:
+        return asdict(self)
 
 
 class TokenPermuter:
-    def __init__(self, seed: int = 42):
+    def __init__(self, seed: int = 42, separate_digits: bool = True, words_only: bool = True):
         self.seed = seed
         self.cipher: Dict[str, str] = {}
         self.reverse_cipher: Dict[str, str] = {}
+        self.separate_digits = separate_digits
+        self.words_only = words_only
         random.seed(seed)
 
-    def tokenize_simple(self, text: str) -> List[str]:
+    def tokenize_simple(self, text: str, words_only: bool = True) -> List[str]:
         """Simple whitespace + punctuation tokenizer."""
         # Split on whitespace and keep punctuation separate
         tokens = re.findall(r'\w+|[^\w\s]', text)
+        if words_only:
+            tokens = [token for token in tokens if token.isalpha()]
         return tokens
-
-    def extract_cot_reasoning(self, answer: str) -> str:
-        """
-        Extract just the COT reasoning part (before #### final answer).
-
-        Example:
-        Input: "Step 1...\nStep 2...\n#### 42"
-        Output: "Step 1...\nStep 2..."
-        """
-        parts = answer.split('####')
-        return parts[0].strip() if len(parts) > 0 else answer
+    
+    def create_cipher(self, tokens: List[str]) -> Dict[str, str]:
+        """Create a cipher from a list of tokens."""
+        permuted_tokens = tokens.copy()
+        random.shuffle(permuted_tokens)
+        return {orig: perm for orig, perm in zip(tokens, permuted_tokens)}
 
     def build_cipher(self, dataset: List[Dict], top_k: int = 50) -> Dict[str, str]:
         """
@@ -51,19 +65,30 @@ class TokenPermuter:
         token_counts = Counter()
 
         for example in dataset:
-            cot_text = self.extract_cot_reasoning(example['answer'])
-            tokens = self.tokenize_simple(cot_text)
+            tokens = self.tokenize_simple(example.cot, self.words_only)
             token_counts.update(tokens)
 
         # Get top K most common tokens
         top_tokens = [token for token, _ in token_counts.most_common(top_k)]
 
-        # Create permutation (shuffle the tokens)
-        permuted_tokens = top_tokens.copy()
-        random.shuffle(permuted_tokens)
-
+        # Run constructio separately or together for digits and numbers
+        if self.separate_digits:
+            digit_tokens, non_digit_tokens, special_chars_tokens = [], [], []
+            for token in top_tokens:
+                if re.match(r'^\d+$', token):
+                    digit_tokens.append(token)
+                elif re.match(r'\W', token):
+                    special_chars_tokens.append(token)
+                else:
+                    non_digit_tokens.append(token)
+            word_cipher = self.create_cipher(non_digit_tokens) if len(non_digit_tokens) > 0 else {}
+            special_chars_cipher = self.create_cipher(special_chars_tokens) if len(special_chars_tokens) > 0 else {}
+            number_cipher = self.create_cipher(digit_tokens) if len(digit_tokens) > 0 else {}
+            self.cipher = {**word_cipher, **number_cipher, **special_chars_cipher}
+        else:
+            self.cipher = self.create_cipher(top_tokens)
+            
         # Build cipher mapping
-        self.cipher = {orig: perm for orig, perm in zip(top_tokens, permuted_tokens)}
         self.reverse_cipher = {perm: orig for orig, perm in self.cipher.items()}
 
         print(f"Built cipher with {len(self.cipher)} tokens")
@@ -125,7 +150,7 @@ class TokenPermuter:
 
         return ''.join(result)
 
-    def permute_dataset(self, dataset: List[Dict]) -> List[Dict]:
+    def permute_dataset(self, dataset: List[Example]) -> List[Example]:
         """
         Permute COT reasoning in entire dataset.
 
@@ -135,45 +160,62 @@ class TokenPermuter:
         permuted_dataset = []
 
         for example in dataset:
-            # Keep question unchanged
-            question = example['question']
-            answer = example['answer']
-
-            # Split answer into COT and final answer
-            parts = answer.split('####')
-            cot_reasoning = parts[0].strip()
-            final_answer = parts[1].strip() if len(parts) > 1 else ""
-
             # Permute only the COT reasoning
-            permuted_cot = self.apply_permutation(cot_reasoning)
+            permuted_cot = self.apply_permutation(example.cot)
 
-            # Reconstruct answer
-            permuted_answer = permuted_cot
-            if final_answer:
-                permuted_answer += f"\n#### {final_answer}"
-
-            permuted_dataset.append({
-                'question': question,
-                'answer': permuted_answer,
-                'original_answer': answer
-            })
-
+            permuted_dataset.append(
+                Example(
+                question = example.question,
+                cot = permuted_cot,
+                answer = example.answer
+            )
+        )
         return permuted_dataset
+
+    
+def preprocess_dataset(dataset: List[Dict]) -> List[Dict]:
+    """Preprocess dataset by removing extra spaces and formatting."""
+    preprocessed_dataset = []
+    for example in dataset:
+        parts = example['answer'].split('####')
+        preprocessed_dataset.append(
+            Example(
+                question = example['question'],
+                cot = parts[0].strip() if len(parts) > 0 else "",
+                answer = parts[1].strip() if len(parts) > 1 else ""
+            )
+        )
+    return preprocessed_dataset
+
+
+
+
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Permute GSM8K dataset")
+    parser.add_argument('--n-train', type = int, default = 1000, help="Number of examples to use")
+    parser.add_argument('--n-test', type = int, default = 1000, help="Number of examples to use")
+    parser.add_argument('--k', type = int, nargs = '+', default = [10, 50, 100], help="K values to use")
+    parser.add_argument('--valid-split', type = float, default = 0.20, help="Split ratio for valid/test")
+    args = parser.parse_args()
+
     # Load GSM8K
     print("Loading GSM8K dataset...")
-    from datasets import load_dataset
+    
     dataset = load_dataset("gsm8k", "main")
 
-    train_data = [dict(example) for example in dataset['train']]
-    test_data = [dict(example) for example in dataset['test']]
+    validate_path('results/datasets')
+
+    # Transforms to question, cot, answer
+    train_data = preprocess_dataset([dict(example) for example in dataset['train']][:args.n_train])
+    test_data = preprocess_dataset([dict(example) for example in dataset['test']][:args.n_test])
+    save_dataset(train_data, f"results/datasets/gsm8k_train.json")
+    save_dataset(test_data, f"results/datasets/gsm8k_test.json")
+
 
     # Test with different K values
-    k_values = [10, 50, 100]
-
-    for k in k_values:
+    for k in args.k:
         print(f"\n{'='*60}")
         print(f"Creating permutation with K={k}")
         print(f"{'='*60}")
@@ -182,34 +224,29 @@ def main():
         permuter.build_cipher(train_data, top_k=k)
 
         # Save cipher
-        cipher_file = f"cipher_k{k}.json"
+        cipher_file = f"results/ciphers/cipher_k{k}.json"
+        validate_path(cipher_file)
         with open(cipher_file, 'w') as f:
             json.dump({
                 'k': k,
-                'cipher': permuter.cipher,
-                'reverse_cipher': permuter.reverse_cipher
+                'cipher': permuter.cipher
             }, f, indent=2)
         print(f"Saved cipher to {cipher_file}")
 
         # Permute datasets
         print("Permuting datasets...")
-        train_permuted = permuter.permute_dataset(train_data[:100])  # Sample for now
-        test_permuted = permuter.permute_dataset(test_data[:20])
+        train_permuted = permuter.permute_dataset(train_data)  # Sample for now
+        test_permuted = permuter.permute_dataset(test_data)
 
         # Save permuted datasets
-        output_file = f"gsm8k_permuted_k{k}.json"
-        with open(output_file, 'w') as f:
-            json.dump({
-                'train': train_permuted,
-                'test': test_permuted
-            }, f, indent=2)
-        print(f"Saved permuted dataset to {output_file}")
+        save_dataset(train_permuted, f"results/datasets/gsm8k_train_permuted_k{k}.json")
+        save_dataset(test_permuted, f"results/datasets/gsm8k_test_permuted_k{k}.json")
 
         # Show example
         print(f"\nExample (K={k}):")
-        print(f"Question: {train_permuted[0]['question'][:100]}...")
-        print(f"\nOriginal COT:\n{train_data[0]['answer'][:200]}...")
-        print(f"\nPermuted COT:\n{train_permuted[0]['answer'][:200]}...")
+        print(f"Question: {train_data[0].question}...")
+        print(f"\nOriginal COT:\n{train_data[0].cot}...")
+        print(f"\nPermuted COT:\n{train_permuted[0].cot}...")
 
 
 if __name__ == "__main__":
