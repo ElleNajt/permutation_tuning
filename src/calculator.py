@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+NOTE: Not currently in use!
+
 Calculator utility for GSM8K-style annotations.
 
 Parses and evaluates expressions in <<expr=result>> format.

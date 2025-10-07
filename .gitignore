@@ -18,3 +18,5 @@ value_head_probes/
 
 *.egg-info/
 **/*.egg-info/
+
+unsloth_compiled_cache/*
