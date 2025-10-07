@@ -16,6 +16,15 @@ Testing whether models can learn reasoning patterns when chain-of-thought tokens
 - Dont select top tokens, select middle of the road tokens
 
 
+# Plan
+1. Start from a base non-reasoning model ie Qwen 7B (this was shown to learn reasoning from the traces)
+2. Teach the model on the reasoning traces -> show that the reasoning traces are enough to learn to use <think> tokens
+3. Encode the reasoning traces only but keep the outputs as preset outputs; keep <think> token as static
+  - Word permutation
+
+
+
+
 ## Experiment Design
 
 ### Core Intuition

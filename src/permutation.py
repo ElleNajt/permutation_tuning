@@ -17,14 +17,7 @@ from dataclasses import dataclass, asdict
 
 from src.utils import validate_path, save_dataset
 
-@dataclass
-class Example:
-    question: str
-    cot: str
-    answer: str
 
-    def to_dict(self) -> Dict:
-        return asdict(self)
 
 
 class TokenPermuter:

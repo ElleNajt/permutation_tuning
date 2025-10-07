@@ -3,9 +3,10 @@
 NOTE: Not tested!!
 
 
-Interactive vLLM engine for chatting with fine-tuned models.
+Interactive engine for chatting with fine-tuned models.
 
-Allows users to interact with the model in real-time with streaming responses.
+Supports both vLLM (with streaming) and unsloth (4-bit quantized) engines.
+Allows users to interact with the model in real-time.
 """
 
 import argparse
@@ -14,21 +15,7 @@ from vllm import LLM, SamplingParams
 from vllm.lora.request import LoRARequest
 from transformers import AutoTokenizer
 
-from src.evaluate import load_model_and_tokenizer
-
-
-def format_prompt(question: str, tokenizer) -> str:
-    """Format question as a chat prompt."""
-    messages = [
-        {"role": "user", "content": question + ".\n Please reason step by step, and put your final answer within \\boxed{}."}
-    ]
-    
-    prompt = tokenizer.apply_chat_template(
-        messages,
-        tokenize = False,
-        add_generation_prompt = True
-    )
-    return prompt
+from src.evaluate import load_model_and_tokenizer, generate_unsloth_answer, prepare_question
 
 
 def print_streaming_response(output_generator, hide_thinking: bool = False):
@@ -87,20 +74,22 @@ def run_interactive_session(
     lora_request = None,
     max_new_tokens: int = 2056,
     temperature: float = 0.7,
-    hide_thinking: bool = False
+    hide_thinking: bool = False,
+    engine: str = 'vllm'
 ):
     """Run an interactive chat session with the model.
     
     Args:
-        model: vLLM model instance
+        model: Model instance (vLLM or unsloth)
         tokenizer: Tokenizer for the model
-        lora_request: Optional LoRA adapter request
+        lora_request: Optional LoRA adapter request (vLLM only)
         max_new_tokens: Maximum tokens to generate
         temperature: Sampling temperature
         hide_thinking: If True, hide thinking tokens in output
+        engine: Engine to use ('vllm' or 'unsloth')
     """
     print("\n" + "="*60)
-    print("Interactive vLLM Chat Session")
+    print(f"Interactive Chat Session ({engine.upper()})")
     print("="*60)
     print("\nCommands:")
     print("  - Type your question and press Enter to submit")
@@ -112,11 +101,11 @@ def run_interactive_session(
         print("  - Thinking is SHOWN (use --hide-thinking to hide)")
     print("\n" + "="*60 + "\n")
     
-    sampling_params = SamplingParams(
-        temperature = temperature,
-        max_tokens = max_new_tokens,
-        stream = True  # Enable streaming
-    )
+    if engine == 'vllm':
+        sampling_params = SamplingParams(
+            temperature = temperature,
+            max_tokens = max_new_tokens
+        )
     
     while True:
         try:
@@ -136,21 +125,41 @@ def run_interactive_session(
             if not user_input:
                 continue
             
-            # Format the prompt
-            prompt = format_prompt(user_input, tokenizer)
-            
-            # Generate response with streaming
+            # Generate response
             print("\n🤖 Assistant: ", end = '', flush = True)
             
-            output_generator = model.generate(
-                prompts = [prompt],
-                sampling_params = sampling_params,
-                lora_request = lora_request,
-                use_tqdm = False
-            )
-            
-            # Print streaming response
-            full_response = print_streaming_response(output_generator, hide_thinking = hide_thinking)
+            if engine == 'vllm':
+                # vLLM with streaming
+                prompt = prepare_question(user_input, tokenizer, with_chat_template = True)
+                output_generator = model.generate(
+                    prompts = [prompt],
+                    sampling_params = sampling_params,
+                    lora_request = lora_request,
+                    use_tqdm = False
+                )
+                
+                # Print streaming response
+                full_response = print_streaming_response(output_generator, hide_thinking = hide_thinking)
+            else:
+                # Unsloth without streaming - use existing function
+                full_response = generate_unsloth_answer(
+                    model = model,
+                    tokenizer = tokenizer,
+                    question = user_input,
+                    max_new_tokens = max_new_tokens,
+                    temperature = temperature,
+                    force_think_token = True
+                )
+                
+                # Print response (with optional thinking hiding)
+                if hide_thinking:
+                    # Remove thinking tags for display
+                    import re
+                    display_text = re.sub(r'<think>.*?</think>', '', full_response, flags = re.DOTALL)
+                    print(display_text)
+                else:
+                    print(full_response)
+                print()  # Newline
             
         except KeyboardInterrupt:
             print("\n\n👋 Session interrupted. Goodbye!\n")
@@ -181,6 +190,15 @@ def main():
         '--adapter-path',
         type = str,
         help = 'Path to LoRA adapter'
+    )
+    
+    # Engine options
+    parser.add_argument(
+        '--engine',
+        type = str,
+        default = 'vllm',
+        choices = ['vllm', 'unsloth'],
+        help = 'Inference engine to use (vllm for fast inference with streaming, unsloth for 4-bit quantized models)'
     )
     
     # Generation options
@@ -218,8 +236,9 @@ def main():
     if args.model_path is None:
         args.model_path = args.model_id
     
-    # Load model using vLLM engine
+    # Load model
     print("\n⏳ Loading model...")
+    print(f"   Engine: {args.engine}")
     print(f"   Model ID: {args.model_id}")
     print(f"   Model Path: {args.model_path}")
     if args.adapter_path:
@@ -229,7 +248,7 @@ def main():
         model_id = args.model_id,
         model_path = args.model_path,
         adapter_path = args.adapter_path,
-        engine = 'vllm'
+        engine = args.engine
     )
     
     print("✅ Model loaded successfully!")
@@ -242,7 +261,8 @@ def main():
             lora_request = lora_request,
             max_new_tokens = args.max_new_tokens,
             temperature = args.temperature,
-            hide_thinking = hide_thinking
+            hide_thinking = hide_thinking,
+            engine = args.engine
         )
     finally:
         # Cleanup

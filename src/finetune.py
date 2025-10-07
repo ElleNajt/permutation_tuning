@@ -96,7 +96,7 @@ def train_model(
         print("Applying LoRA configuration...")
         lora_config = {
             "r": 8,
-            "lora_alpha": 8,
+            "lora_alpha": 16,
             "lora_dropout": 0.0,
             "target_modules": [
                 "q_proj",

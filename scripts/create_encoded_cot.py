@@ -16,10 +16,8 @@ Encoded COT Reasoning
 
 
 from datasets import load_dataset
-from dataclasses import dataclass, asdict
-from typing import TypedDict
-from collections import  UserList
 import re
+import tqdm
 
 from src.data import save_dataset, Example
 
@@ -64,7 +62,7 @@ def clean_problem_text(text: str) -> str:
     return text.strip()
 
 
-def caesar(text: str, shift: int = 3) -> str:
+def caesar(text: str, shift: int = 3, exclude_numbers: bool = True) -> str:
     """
     Caesar cipher for ASCII letters and digits.
     - Shifts A–Z and a–z by `shift` (wraps mod 26).
@@ -81,24 +79,26 @@ def caesar(text: str, shift: int = 3) -> str:
         elif 'A' <= ch <= 'Z':
             base = ord('A')
             out.append(chr(base + (ord(ch) - base + shift) % 26))
-        elif '0' <= ch <= '9':
+        elif ('0' <= ch <= '9') and (not exclude_numbers):
             base = ord('0')
             out.append(chr(base + (ord(ch) - base + shift) % 10))
         else:
             out.append(ch)  # exclude special characters
     return ''.join(out)
 
-def caesar_decode(text: str, shift: int) -> str:
-    """Decrypt by reversing the shift."""
-    return caesar(text, -shift)
-
-
-def apply_cipher(example: Example, shift: int = 3) -> Example:
+def apply_cipher(example: Example, shift: int = 3, exclude_numbers: bool = True) -> Example:
     return Example(
         question = example.question,
-        cot = caesar(example.cot, shift),
+        cot = caesar(example.cot, shift, exclude_numbers),
         answer = example.answer
     )
+
+def apply_cipher_to_data(data: list[Example], shift: int = 3, exclude_numbers: bool = True) -> list[Example]:
+    out = []
+    for d in tqdm.tqdm(data, desc = "Applying cipher to data"):
+        d = apply_cipher(d, shift, exclude_numbers)
+        out.append(d)
+    return out
 
 
 def process_example(example: dict):
@@ -122,25 +122,30 @@ data = [process_example(example) for example in raw_data]
 data = [item for sublist in data for item in sublist]
 print('Formatted Data', len(data))
 
+test_split = 0.2
+
 # Split into train and test datasets
-n_train = int(len(data) * 0.8)
+n_train = int(len(data) * (1 - test_split))
 train_data = data[:n_train]
 test_data = data[n_train:]
 
-save_dataset(train_data, 'results/datasets/openr1_train.json')
-print('Saved Train Data')
+# save_dataset(train_data, 'results/datasets/openr1_train.json')
+# print('Saved Train Data')
 
-save_dataset(test_data, 'results/datasets/openr1_test.json')
-print('Saved Test Data')
+# save_dataset(test_data, 'results/datasets/openr1_test.json')
+# print('Saved Test Data')
 
+dataset_size = 10_000
 k = 5
+exclude_numbers = True
 
 # Add encoded COTs
-encoded_train_data = [apply_cipher(example, k) for example in train_data]
-encoded_test_data = [apply_cipher(example, k) for example in test_data]
+encoded_train_data = apply_cipher_to_data(train_data[:dataset_size], k, exclude_numbers = exclude_numbers) 
+encoded_test_data = apply_cipher_to_data(test_data[:int(dataset_size * test_split)], k, exclude_numbers = exclude_numbers)
 
-save_dataset(encoded_train_data, f'results/datasets/openr1_train_encoded_caesar_{k}.json')
+suff = '_nd' if exclude_numbers else ''
+save_dataset(encoded_train_data, f'results/datasets/openr1_train_encoded_caesar{suff}_{k}_{dataset_size}.json')
 print('Saved Encoded Train Data')
 
-save_dataset(encoded_test_data, 'results/datasets/openr1_test_encoded_caesar_{k}.json')
+save_dataset(encoded_test_data, f'results/datasets/openr1_test_encoded_caesar{suff}_{k}_{dataset_size}.json')
 print('Saved Encoded Test Data')

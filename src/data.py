@@ -29,8 +29,8 @@ class Example:
     
     def to_messages(self) -> ChatRequest:
         return [
-            {'role': 'user', 'content': self.question + '.\n Please reason step by step, and put your final answer within \boxed{}.'},
-            {'role': 'assistant', 'content': f"<think>{self.cot}</think>\n \boxed{{{self.answer}}}"}
+            {'role': 'user', 'content': self.question + '.\n Please reason step by step, and put your final answer within \\boxed{}.'},
+            {'role': 'assistant', 'content': f"<think>{self.cot}</think>\n \\boxed{{{self.answer}}}"}
         ]
     
     def to_chatml(self) -> dict:
